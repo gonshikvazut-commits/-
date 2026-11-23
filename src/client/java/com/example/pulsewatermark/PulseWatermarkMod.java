@@ -1,14 +1,25 @@
 package com.example.pulsewatermark;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.Identifier;
+
+import java.awt.*;
+import java.awt.image.BufferedImage;
 
 public class PulseWatermarkMod implements ClientModInitializer {
+
+    private DynamicTexture dynamicTexture;
+    private Identifier textureId;
+    private String lastKey = "";
+    private int texWidth = 220;
+    private int texHeight = 32;
 
     @Override
     public void onInitializeClient() {
@@ -21,121 +32,158 @@ public class PulseWatermarkMod implements ClientModInitializer {
             return;
         }
 
-        String brand = "pulsevisuals.pro";
-        String pingStr = getPing(client) + " ms";
-        String fpsStr = client.getFps() + " FPS";
+        int ping = getPing(client);
+        int fps = client.getFps();
+        String key = ping + "_" + fps;
 
-        Font font = client.font;
-        float textScale = 0.85f;
-
-        int iconWidth = 12;
-        int gapAfterIcon = 7;
-        int sepGap = 8;
-
-        int brandW = Math.round(font.width(brand) * textScale);
-        int pingW = Math.round(font.width(pingStr) * textScale);
-        int fpsW = Math.round(font.width(fpsStr) * textScale);
-
-        int padX = 12;
-        int height = 21;
-        int width = padX * 2 + iconWidth + gapAfterIcon + brandW + sepGap * 2 + 1 + pingW + sepGap * 2 + 1 + fpsW;
-
-        int screenWidth = client.getWindow().getGuiScaledWidth();
-        int x = (screenWidth - width) / 2;
-        int y = 7;
-
-        // 1. Мягкая внешняя тень вокруг капсулы
-        drawSmoothPill(graphics, x - 2, y - 1, width + 4, height + 3, 0x45000000);
-
-        // 2. Глубокий почти непрозрачный черный фон капсулы, как в оригинале Pulse
-        drawSmoothPill(graphics, x, y, width, height, 0xF208080C);
-
-        // 3. Едва заметная тонкая обводка по верхнему и нижнему краю
-        int r = height / 2;
-        graphics.fill(x + r, y, x + width - r, y + 1, 0x22FFFFFF);
-        graphics.fill(x + r, y + height - 1, x + width - r, y + height, 0x18FFFFFF);
-
-        // 4. Фирменная иконка пульса (кардиограмма) слева
-        int ix = x + padX;
-        int iy = y + height / 2;
-        int pulseColor = 0xFF7B68EE;
-
-        graphics.fill(ix, iy, ix + 2, iy + 1, pulseColor);
-        graphics.fill(ix + 2, iy - 2, ix + 3, iy + 1, pulseColor);
-        graphics.fill(ix + 3, iy - 5, ix + 4, iy - 1, pulseColor);
-        graphics.fill(ix + 4, iy - 2, ix + 5, iy + 5, pulseColor);
-        graphics.fill(ix + 5, iy + 1, ix + 6, iy + 5, pulseColor);
-        graphics.fill(ix + 6, iy - 3, ix + 7, iy + 2, pulseColor);
-        graphics.fill(ix + 7, iy - 1, ix + 8, iy + 1, pulseColor);
-        graphics.fill(ix + 8, iy, ix + 11, iy + 1, pulseColor);
-
-        // 5. Текст и тонкие вертикальные разделители
-        int curX = ix + iconWidth + gapAfterIcon;
-        float textY = y + (height - font.lineHeight * textScale) / 2.0f + 0.5f;
-
-        drawScaledText(graphics, font, brand, curX, textY, textScale, 0xFFFFFFFF);
-        curX += brandW + sepGap;
-
-        // Тонкий вертикальный разделитель №1
-        graphics.fill(curX, y + 6, curX + 1, y + height - 6, 0xFF32323C);
-        curX += 1 + sepGap;
-
-        drawScaledText(graphics, font, pingStr, curX, textY, textScale, 0xFFE6E6EC);
-        curX += pingW + sepGap;
-
-        // Тонкий вертикальный разделитель №2
-        graphics.fill(curX, y + 6, curX + 1, y + height - 6, 0xFF32323C);
-        curX += 1 + sepGap;
-
-        drawScaledText(graphics, font, fpsStr, curX, textY, textScale, 0xFFE6E6EC);
-    }
-
-    private void drawScaledText(GuiGraphics graphics, Font font, String text, float x, float y, float scale, int color) {
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(x, y);
-        graphics.pose().scale(scale, scale);
-        graphics.drawString(font, text, 0, 0, color, false);
-        graphics.pose().popMatrix();
-    }
-
-    private void drawSmoothPill(GuiGraphics graphics, int x, int y, int width, int height, int argbColor) {
-        int baseAlpha = (argbColor >>> 24) & 0xFF;
-        int rgb = argbColor & 0x00FFFFFF;
-        float r = height / 2.0f;
-
-        int leftInner = (int) Math.ceil(x + r);
-        int rightInner = (int) Math.floor(x + width - r);
-        if (rightInner > leftInner) {
-            graphics.fill(leftInner, y, rightInner, y + height, argbColor);
+        // Перерисовываем текстуру в HD-качестве только при изменении FPS или пинга
+        if (!key.equals(lastKey) || textureId == null) {
+            lastKey = key;
+            rebuildTexture(client, "pulsevisuals.pro", ping + " ms", fps + " FPS");
         }
 
-        for (int py = 0; py < height; py++) {
-            float dy = (py + 0.5f) - r;
-            float distSq = r * r - dy * dy;
-            if (distSq <= 0) continue;
+        if (textureId != null) {
+            int guiScale = Math.max(1, client.getWindow().getGuiScale());
+            int drawW = Math.round((float) texWidth / guiScale);
+            int drawH = Math.round((float) texHeight / guiScale);
 
-            float span = (float) Math.sqrt(distSq);
-            float exactLeft = (x + r) - span;
-            float exactRight = (x + width - r) + span;
+            int screenWidth = client.getWindow().getGuiScaledWidth();
+            int x = (screenWidth - drawW) / 2;
+            int y = 7;
 
-            int lx = (int) Math.floor(exactLeft);
-            int rx = (int) Math.floor(exactRight);
+            graphics.blit(
+                net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                textureId,
+                x, y,
+                0.0f, 0.0f,
+                drawW, drawH,
+                drawW, drawH
+            );
+        }
+    }
 
-            float leftCov = 1.0f - (exactLeft - lx);
-            int lAlpha = Math.min(255, Math.max(0, Math.round(baseAlpha * leftCov)));
-            graphics.fill(lx, y + py, lx + 1, y + py + 1, (lAlpha << 24) | rgb);
+    private void rebuildTexture(Minecraft client, String brand, String pingStr, String fpsStr) {
+        int scale = Math.max(2, client.getWindow().getGuiScale());
+        int h = 26 * scale; // Точная высота капсулы как на скриншоте
 
-            float rightCov = exactRight - rx;
-            int rAlpha = Math.min(255, Math.max(0, Math.round(baseAlpha * rightCov)));
-            graphics.fill(rx, y + py, rx + 1, y + py + 1, (rAlpha << 24) | rgb);
+        // Измеряем ширину текста настоящим гладким шрифтом
+        BufferedImage dummy = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D gMeasure = dummy.createGraphics();
+        Font fontMain = getSmoothFont(Font.PLAIN, 12.5f * scale);
+        gMeasure.setFont(fontMain);
+        FontMetrics fm = gMeasure.getFontMetrics();
 
-            if (leftInner > lx + 1) {
-                graphics.fill(lx + 1, y + py, leftInner, y + py + 1, argbColor);
-            }
-            if (rx > rightInner) {
-                graphics.fill(rightInner, y + py, rx, y + py + 1, argbColor);
+        int padX = 14 * scale;
+        int iconW = 14 * scale;
+        int gapIcon = 8 * scale;
+        int gapSep = 10 * scale;
+        int sepW = Math.max(1, scale);
+
+        int brandW = fm.stringWidth(brand);
+        int pingW = fm.stringWidth(pingStr);
+        int fpsW = fm.stringWidth(fpsStr);
+
+        int w = padX * 2 + iconW + gapIcon + brandW + gapSep * 2 + sepW + pingW + gapSep * 2 + sepW + fpsW;
+        gMeasure.dispose();
+
+        // Создаем HD-холст с максимальным сглаживанием (Anti-Aliasing)
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+
+        // 1. Глубокий черный фон капсулы 1-в-1 как на оригинальном скриншоте
+        g.setColor(new Color(8, 8, 11, 245));
+        g.fillRoundRect(0, 0, w, h, h, h);
+
+        // 2. Тончайший контур по краю капсулы
+        g.setColor(new Color(255, 255, 255, 22));
+        g.setStroke(new BasicStroke(Math.max(1f, scale * 0.5f)));
+        g.drawRoundRect(0, 0, w - 1, h - 1, h, h);
+
+        // 3. Плавная векторная иконка пульса слева
+        g.setColor(new Color(123, 104, 238, 255));
+        g.setStroke(new BasicStroke(1.6f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        int ix = padX;
+        int cy = h / 2;
+        int[] px = {
+            ix,
+            ix + 3 * scale,
+            ix + 5 * scale,
+            ix + 7 * scale,
+            ix + 9 * scale,
+            ix + 11 * scale,
+            ix + 14 * scale
+        };
+        int[] py = {
+            cy,
+            cy,
+            cy - 5 * scale,
+            cy + 6 * scale,
+            cy - 3 * scale,
+            cy,
+            cy
+        };
+        g.drawPolyline(px, py, px.length);
+
+        // 4. Гладкий текст без единого пикселя
+        g.setFont(fontMain);
+        int textY = (h - fm.getHeight()) / 2 + fm.getAscent();
+        int curX = ix + iconW + gapIcon;
+
+        g.setColor(new Color(250, 250, 252, 255));
+        g.drawString(brand, curX, textY);
+        curX += brandW + gapSep;
+
+        // Вертикальный разделитель №1
+        g.setColor(new Color(45, 45, 54, 255));
+        g.fillRect(curX, 5 * scale, sepW, h - 10 * scale);
+        curX += sepW + gapSep;
+
+        g.setColor(new Color(235, 235, 240, 255));
+        g.drawString(pingStr, curX, textY);
+        curX += pingW + gapSep;
+
+        // Вертикальный разделитель №2
+        g.setColor(new Color(45, 45, 54, 255));
+        g.fillRect(curX, 5 * scale, sepW, h - 10 * scale);
+        curX += sepW + gapSep;
+
+        g.setColor(new Color(235, 235, 240, 255));
+        g.drawString(fpsStr, curX, textY);
+
+        g.dispose();
+
+        // Переносим картинку в текстуру Minecraft
+        NativeImage nativeImg = new NativeImage(w, h, false);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                nativeImg.setPixel(x, y, img.getRGB(x, y));
             }
         }
+
+        if (dynamicTexture != null) {
+            dynamicTexture.close();
+        }
+        dynamicTexture = new DynamicTexture(() -> "pulse_watermark", nativeImg);
+        textureId = Identifier.fromNamespaceAndPath("pulsewatermark", "hud_pill");
+        client.getTextureManager().register(textureId, dynamicTexture);
+
+        texWidth = w;
+        texHeight = h;
+    }
+
+    private Font getSmoothFont(int style, float size) {
+        String[] candidates = {"Segoe UI", "Inter", "Arial", "SansSerif"};
+        for (String name : candidates) {
+            Font f = new Font(name, style, Math.round(size));
+            if (!f.getFamily().equals("Dialog")) {
+                return f.deriveFont(size);
+            }
+        }
+        return new Font(Font.SANS_SERIF, style, Math.round(size)).deriveFont(size);
     }
 
     private int getPing(Minecraft client) {
