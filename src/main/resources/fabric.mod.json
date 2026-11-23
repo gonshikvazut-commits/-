@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "pulsewatermark",
+  "version": "1.0.0",
+  "name": "Pulse Watermark",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.example.pulsewatermark.PulseWatermarkMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "1.21.11",
+    "fabric-api": "*"
+  }
+}
