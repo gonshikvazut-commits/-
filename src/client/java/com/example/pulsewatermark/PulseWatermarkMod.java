@@ -7,14 +7,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.PlayerInfo;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
-import net.minecraft.resources.ResourceLocation;
 
 public class PulseWatermarkMod implements ClientModInitializer {
-
-    // Встроенный в Minecraft тонкий гладкий шрифт без квадратных пикселей
-    private static final ResourceLocation SMOOTH_FONT = ResourceLocation.withDefaultNamespace("uniform");
 
     @Override
     public void onInitializeClient() {
@@ -27,24 +21,23 @@ public class PulseWatermarkMod implements ClientModInitializer {
             return;
         }
 
-        Style fontStyle = Style.EMPTY.withFont(SMOOTH_FONT);
-        Component brand = Component.literal("pulsevisuals.pro").setStyle(fontStyle);
-        Component pingComp = Component.literal(getPing(client) + " ms").setStyle(fontStyle);
-        Component fpsComp = Component.literal(client.getFps() + " FPS").setStyle(fontStyle);
+        String brand = "pulsevisuals.pro";
+        String pingStr = getPing(client) + " ms";
+        String fpsStr = client.getFps() + " FPS";
 
         Font font = client.font;
-        float textScale = 0.95f;
+        float textScale = 0.85f;
 
         int iconWidth = 12;
         int gapAfterIcon = 7;
-        int sepGap = 8; // Отступ вокруг тонкой вертикальной полоски-разделителя
+        int sepGap = 8;
 
         int brandW = Math.round(font.width(brand) * textScale);
-        int pingW = Math.round(font.width(pingComp) * textScale);
-        int fpsW = Math.round(font.width(fpsComp) * textScale);
+        int pingW = Math.round(font.width(pingStr) * textScale);
+        int fpsW = Math.round(font.width(fpsStr) * textScale);
 
         int padX = 12;
-        int height = 22;
+        int height = 21;
         int width = padX * 2 + iconWidth + gapAfterIcon + brandW + sepGap * 2 + 1 + pingW + sepGap * 2 + 1 + fpsW;
 
         int screenWidth = client.getWindow().getGuiScaledWidth();
@@ -57,8 +50,10 @@ public class PulseWatermarkMod implements ClientModInitializer {
         // 2. Глубокий почти непрозрачный черный фон капсулы, как в оригинале Pulse
         drawSmoothPill(graphics, x, y, width, height, 0xF208080C);
 
-        // 3. Едва заметная тонкая обводка по краю
-        drawSmoothPillOutline(graphics, x, y, width, height, 0x22FFFFFF);
+        // 3. Едва заметная тонкая обводка по верхнему и нижнему краю
+        int r = height / 2;
+        graphics.fill(x + r, y, x + width - r, y + 1, 0x22FFFFFF);
+        graphics.fill(x + r, y + height - 1, x + width - r, y + height, 0x18FFFFFF);
 
         // 4. Фирменная иконка пульса (кардиограмма) слева
         int ix = x + padX;
@@ -74,28 +69,28 @@ public class PulseWatermarkMod implements ClientModInitializer {
         graphics.fill(ix + 7, iy - 1, ix + 8, iy + 1, pulseColor);
         graphics.fill(ix + 8, iy, ix + 11, iy + 1, pulseColor);
 
-        // 5. Текст гладким шрифтом и тонкие вертикальные разделители
+        // 5. Текст и тонкие вертикальные разделители
         int curX = ix + iconWidth + gapAfterIcon;
         float textY = y + (height - font.lineHeight * textScale) / 2.0f + 0.5f;
 
-        drawScaledComponent(graphics, font, brand, curX, textY, textScale, 0xFFFFFFFF);
+        drawScaledText(graphics, font, brand, curX, textY, textScale, 0xFFFFFFFF);
         curX += brandW + sepGap;
 
         // Тонкий вертикальный разделитель №1
         graphics.fill(curX, y + 6, curX + 1, y + height - 6, 0xFF32323C);
         curX += 1 + sepGap;
 
-        drawScaledComponent(graphics, font, pingComp, curX, textY, textScale, 0xFFE6E6EC);
+        drawScaledText(graphics, font, pingStr, curX, textY, textScale, 0xFFE6E6EC);
         curX += pingW + sepGap;
 
         // Тонкий вертикальный разделитель №2
         graphics.fill(curX, y + 6, curX + 1, y + height - 6, 0xFF32323C);
         curX += 1 + sepGap;
 
-        drawScaledComponent(graphics, font, fpsComp, curX, textY, textScale, 0xFFE6E6EC);
+        drawScaledText(graphics, font, fpsStr, curX, textY, textScale, 0xFFE6E6EC);
     }
 
-    private void drawScaledComponent(GuiGraphics graphics, Font font, Component text, float x, float y, float scale, int color) {
+    private void drawScaledText(GuiGraphics graphics, Font font, String text, float x, float y, float scale, int color) {
         graphics.pose().pushMatrix();
         graphics.pose().translate(x, y);
         graphics.pose().scale(scale, scale);
@@ -141,12 +136,6 @@ public class PulseWatermarkMod implements ClientModInitializer {
                 graphics.fill(rightInner, y + py, rx, y + py + 1, argbColor);
             }
         }
-    }
-
-    private void drawSmoothPillOutline(GuiGraphics graphics, int x, int y, int width, int height, int color) {
-        int r = height / 2;
-        graphics.fill(x + r, y, x + width - r, y + 1, color);
-        graphics.fill(x + r, y + height - 1, x + width - r, y + height, color);
     }
 
     private int getPing(Minecraft client) {
