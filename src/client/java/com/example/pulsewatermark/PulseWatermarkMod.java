@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 
 import java.awt.*;
+import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 
 public class PulseWatermarkMod implements ClientModInitializer {
@@ -18,7 +19,7 @@ public class PulseWatermarkMod implements ClientModInitializer {
     private DynamicTexture dynamicTexture;
     private Identifier textureId;
     private String lastKey = "";
-    private int texWidth = 160;
+    private int texWidth = 140;
     private int texHeight = 20;
 
     @Override
@@ -64,25 +65,28 @@ public class PulseWatermarkMod implements ClientModInitializer {
     private void rebuildTexture(Minecraft client, String brand, String pingStr, String fpsStr) {
         int scale = Math.max(2, client.getWindow().getGuiScale());
         int padShadow = 2 * scale;
-        int pillH = 16 * scale; // Низкая компактная капсула как на видео
+        int pillH = 16 * scale;
 
         BufferedImage dummy = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gMeasure = dummy.createGraphics();
-        Font fontMain = getSmoothFont(Font.PLAIN, 9.2f * scale);
-        gMeasure.setFont(fontMain);
-        FontMetrics fm = gMeasure.getFontMetrics();
+        Font fontBrand = getSmoothFont(Font.BOLD, 9.0f * scale);
+        Font fontStats = getSmoothFont(Font.PLAIN, 9.0f * scale);
 
-        String dot = " • ";
-        int padX = 8 * scale;
+        FontMetrics fmBrand = gMeasure.getFontMetrics(fontBrand);
+        FontMetrics fmStats = gMeasure.getFontMetrics(fontStats);
+
+        // Компактные отступы, чтобы плашка была короткой и аккуратной
+        int padX = 6 * scale;
         int iconW = 9 * scale;
-        int gapIcon = 5 * scale;
+        int gapIcon = 4 * scale;
+        int dotGap = 4 * scale;
+        int dotSize = Math.max(2, Math.round(1.6f * scale));
 
-        int brandW = fm.stringWidth(brand);
-        int dotW = fm.stringWidth(dot);
-        int pingW = fm.stringWidth(pingStr);
-        int fpsW = fm.stringWidth(fpsStr);
+        int brandW = fmBrand.stringWidth(brand);
+        int pingW = fmStats.stringWidth(pingStr);
+        int fpsW = fmStats.stringWidth(fpsStr);
 
-        int pillW = padX * 2 + iconW + gapIcon + brandW + dotW + pingW + dotW + fpsW;
+        int pillW = padX * 2 + iconW + gapIcon + brandW + (dotGap * 2 + dotSize) * 2 + pingW + fpsW;
         int w = pillW + padShadow * 2;
         int h = pillH + padShadow * 2;
         gMeasure.dispose();
@@ -97,66 +101,67 @@ public class PulseWatermarkMod implements ClientModInitializer {
         int ox = padShadow;
         int oy = padShadow;
 
-        // 1. Мягкая тень под капсулой
-        g.setColor(new Color(0, 0, 0, 50));
+        // 1. Мягкая тень
+        g.setColor(new Color(0, 0, 0, 55));
         g.fillRoundRect(ox - scale, oy + Math.max(1, scale / 2), pillW + scale * 2, pillH + scale, pillH, pillH);
 
         // 2. Глубокий черный фон капсулы
-        g.setColor(new Color(8, 8, 11, 245));
+        g.setColor(new Color(9, 9, 12, 246));
         g.fillRoundRect(ox, oy, pillW, pillH, pillH, pillH);
 
-        // 3. Тонкий блик-контур
-        g.setColor(new Color(255, 255, 255, 20));
+        // 3. Тонкий контур
+        g.setColor(new Color(255, 255, 255, 22));
         g.setStroke(new BasicStroke(Math.max(1f, scale * 0.4f)));
         g.drawRoundRect(ox, oy, pillW - 1, pillH - 1, pillH, pillH);
 
-        // 4. Фиолетово-синяя иконка пульса слева
-        g.setColor(new Color(126, 108, 255, 255));
+        // 4. Симметричная, ровная иконка пульса (без кривых углов)
+        float ix = ox + padX;
+        float cy = oy + pillH / 2.0f;
+        float step = iconW / 6.0f;
+
+        Path2D.Float pulsePath = new Path2D.Float();
+        pulsePath.moveTo(ix, cy);
+        pulsePath.lineTo(ix + step * 1.4f, cy);
+        pulsePath.lineTo(ix + step * 2.3f, cy - 3.2f * scale);
+        pulsePath.lineTo(ix + step * 3.7f, cy + 3.2f * scale);
+        pulsePath.lineTo(ix + step * 4.6f, cy);
+        pulsePath.lineTo(ix + iconW, cy);
+
+        // Лёгкое свечение вокруг иконки пульса
+        g.setColor(new Color(124, 104, 238, 70));
+        g.setStroke(new BasicStroke(2.4f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(pulsePath);
+
+        // Сама чёткая линия пульса
+        g.setColor(new Color(138, 120, 255, 255));
         g.setStroke(new BasicStroke(1.25f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        int ix = ox + padX;
-        int cy = oy + pillH / 2;
-        int[] px = {
-            ix,
-            ix + 2 * scale,
-            ix + 3 * scale,
-            ix + 5 * scale,
-            ix + 7 * scale,
-            ix + 8 * scale,
-            ix + 9 * scale
-        };
-        int[] py = {
-            cy,
-            cy,
-            cy - 3 * scale,
-            cy + 4 * scale,
-            cy - 2 * scale,
-            cy,
-            cy
-        };
-        g.drawPolyline(px, py, px.length);
+        g.draw(pulsePath);
 
-        // 5. Текст с точками-разделителями " • "
-        g.setFont(fontMain);
-        int textY = oy + (pillH - fm.getHeight()) / 2 + fm.getAscent();
-        int curX = ix + iconW + gapIcon;
+        // 5. Текст и ровные круглые точки-разделители
+        int textY = oy + (pillH - fmBrand.getHeight()) / 2 + fmBrand.getAscent();
+        int curX = Math.round(ix + iconW + gapIcon);
 
+        g.setFont(fontBrand);
         g.setColor(new Color(250, 250, 255, 255));
         g.drawString(brand, curX, textY);
-        curX += brandW;
+        curX += brandW + dotGap;
 
-        g.setColor(new Color(105, 105, 115, 255));
-        g.drawString(dot, curX, textY);
-        curX += dotW;
+        // Ровная круглая точка №1
+        g.setColor(new Color(95, 95, 108, 255));
+        g.fillOval(curX, Math.round(cy - dotSize / 2.0f), dotSize, dotSize);
+        curX += dotSize + dotGap;
 
-        g.setColor(new Color(235, 235, 240, 255));
+        g.setFont(fontStats);
+        g.setColor(new Color(230, 230, 236, 255));
         g.drawString(pingStr, curX, textY);
-        curX += pingW;
+        curX += pingW + dotGap;
 
-        g.setColor(new Color(105, 105, 115, 255));
-        g.drawString(dot, curX, textY);
-        curX += dotW;
+        // Ровная круглая точка №2
+        g.setColor(new Color(95, 95, 108, 255));
+        g.fillOval(curX, Math.round(cy - dotSize / 2.0f), dotSize, dotSize);
+        curX += dotSize + dotGap;
 
-        g.setColor(new Color(235, 235, 240, 255));
+        g.setColor(new Color(230, 230, 236, 255));
         g.drawString(fpsStr, curX, textY);
 
         g.dispose();
