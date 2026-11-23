@@ -18,8 +18,8 @@ public class PulseWatermarkMod implements ClientModInitializer {
     private DynamicTexture dynamicTexture;
     private Identifier textureId;
     private String lastKey = "";
-    private int texWidth = 200;
-    private int texHeight = 28;
+    private int texWidth = 160;
+    private int texHeight = 20;
 
     @Override
     public void onInitializeClient() {
@@ -48,7 +48,7 @@ public class PulseWatermarkMod implements ClientModInitializer {
 
             int screenWidth = client.getWindow().getGuiScaledWidth();
             int x = (screenWidth - drawW) / 2;
-            int y = 4; // Ближе к верхнему краю экрана, как в оригинале
+            int y = 4;
 
             graphics.blit(
                 net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
@@ -63,26 +63,26 @@ public class PulseWatermarkMod implements ClientModInitializer {
 
     private void rebuildTexture(Minecraft client, String brand, String pingStr, String fpsStr) {
         int scale = Math.max(2, client.getWindow().getGuiScale());
-        int padShadow = 3 * scale; // Запас под мягкую тень
-        int pillH = 21 * scale;    // Более изящная, приплюснутая высота капсулы
+        int padShadow = 2 * scale;
+        int pillH = 16 * scale; // Низкая компактная капсула как на видео
 
         BufferedImage dummy = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gMeasure = dummy.createGraphics();
-        Font fontMain = getSmoothFont(Font.PLAIN, 11.2f * scale);
+        Font fontMain = getSmoothFont(Font.PLAIN, 9.2f * scale);
         gMeasure.setFont(fontMain);
         FontMetrics fm = gMeasure.getFontMetrics();
 
-        int padX = 11 * scale;
-        int iconW = 11 * scale;
-        int gapIcon = 6 * scale;
-        int gapSep = 8 * scale;
-        int sepW = Math.max(1, Math.round(scale * 0.8f));
+        String dot = " • ";
+        int padX = 8 * scale;
+        int iconW = 9 * scale;
+        int gapIcon = 5 * scale;
 
         int brandW = fm.stringWidth(brand);
+        int dotW = fm.stringWidth(dot);
         int pingW = fm.stringWidth(pingStr);
         int fpsW = fm.stringWidth(fpsStr);
 
-        int pillW = padX * 2 + iconW + gapIcon + brandW + gapSep * 2 + sepW + pingW + gapSep * 2 + sepW + fpsW;
+        int pillW = padX * 2 + iconW + gapIcon + brandW + dotW + pingW + dotW + fpsW;
         int w = pillW + padShadow * 2;
         int h = pillH + padShadow * 2;
         gMeasure.dispose();
@@ -97,37 +97,37 @@ public class PulseWatermarkMod implements ClientModInitializer {
         int ox = padShadow;
         int oy = padShadow;
 
-        // 1. Мягкая внешняя тень под капсулой
-        g.setColor(new Color(0, 0, 0, 55));
-        g.fillRoundRect(ox - scale, oy + scale, pillW + scale * 2, pillH + scale, pillH, pillH);
+        // 1. Мягкая тень под капсулой
+        g.setColor(new Color(0, 0, 0, 50));
+        g.fillRoundRect(ox - scale, oy + Math.max(1, scale / 2), pillW + scale * 2, pillH + scale, pillH, pillH);
 
         // 2. Глубокий черный фон капсулы
-        g.setColor(new Color(9, 9, 12, 248));
+        g.setColor(new Color(8, 8, 11, 245));
         g.fillRoundRect(ox, oy, pillW, pillH, pillH, pillH);
 
-        // 3. Едва уловимый контур
-        g.setColor(new Color(255, 255, 255, 18));
-        g.setStroke(new BasicStroke(Math.max(1f, scale * 0.45f)));
+        // 3. Тонкий блик-контур
+        g.setColor(new Color(255, 255, 255, 20));
+        g.setStroke(new BasicStroke(Math.max(1f, scale * 0.4f)));
         g.drawRoundRect(ox, oy, pillW - 1, pillH - 1, pillH, pillH);
 
-        // 4. Компактная иконка пульса слева
-        g.setColor(new Color(134, 114, 255, 255));
-        g.setStroke(new BasicStroke(1.35f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        // 4. Фиолетово-синяя иконка пульса слева
+        g.setColor(new Color(126, 108, 255, 255));
+        g.setStroke(new BasicStroke(1.25f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         int ix = ox + padX;
         int cy = oy + pillH / 2;
         int[] px = {
             ix,
             ix + 2 * scale,
-            ix + 4 * scale,
-            ix + 6 * scale,
+            ix + 3 * scale,
+            ix + 5 * scale,
+            ix + 7 * scale,
             ix + 8 * scale,
-            ix + 9 * scale,
-            ix + 11 * scale
+            ix + 9 * scale
         };
         int[] py = {
             cy,
             cy,
-            cy - 4 * scale,
+            cy - 3 * scale,
             cy + 4 * scale,
             cy - 2 * scale,
             cy,
@@ -135,30 +135,28 @@ public class PulseWatermarkMod implements ClientModInitializer {
         };
         g.drawPolyline(px, py, px.length);
 
-        // 5. Изящный текст и тонкие вертикальные разделители
+        // 5. Текст с точками-разделителями " • "
         g.setFont(fontMain);
         int textY = oy + (pillH - fm.getHeight()) / 2 + fm.getAscent();
         int curX = ix + iconW + gapIcon;
 
-        g.setColor(new Color(248, 248, 252, 255));
+        g.setColor(new Color(250, 250, 255, 255));
         g.drawString(brand, curX, textY);
-        curX += brandW + gapSep;
+        curX += brandW;
 
-        // Вертикальный разделитель №1
-        g.setColor(new Color(42, 42, 50, 255));
-        g.fillRect(curX, oy + 4 * scale, sepW, pillH - 8 * scale);
-        curX += sepW + gapSep;
+        g.setColor(new Color(105, 105, 115, 255));
+        g.drawString(dot, curX, textY);
+        curX += dotW;
 
-        g.setColor(new Color(230, 230, 236, 255));
+        g.setColor(new Color(235, 235, 240, 255));
         g.drawString(pingStr, curX, textY);
-        curX += pingW + gapSep;
+        curX += pingW;
 
-        // Вертикальный разделитель №2
-        g.setColor(new Color(42, 42, 50, 255));
-        g.fillRect(curX, oy + 4 * scale, sepW, pillH - 8 * scale);
-        curX += sepW + gapSep;
+        g.setColor(new Color(105, 105, 115, 255));
+        g.drawString(dot, curX, textY);
+        curX += dotW;
 
-        g.setColor(new Color(230, 230, 236, 255));
+        g.setColor(new Color(235, 235, 240, 255));
         g.drawString(fpsStr, curX, textY);
 
         g.dispose();
@@ -182,7 +180,7 @@ public class PulseWatermarkMod implements ClientModInitializer {
     }
 
     private Font getSmoothFont(int style, float size) {
-        String[] candidates = {"Inter", "Arial", "Segoe UI", "SansSerif"};
+        String[] candidates = {"Inter", "Segoe UI", "Arial", "SansSerif"};
         for (String name : candidates) {
             Font f = new Font(name, style, Math.round(size));
             if (!f.getFamily().equals("Dialog")) {
