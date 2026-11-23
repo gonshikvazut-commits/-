@@ -7,8 +7,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.resources.ResourceLocation;
 
 public class PulseWatermarkMod implements ClientModInitializer {
+
+    // Встроенный в Minecraft тонкий гладкий шрифт без квадратных пикселей
+    private static final ResourceLocation SMOOTH_FONT = ResourceLocation.withDefaultNamespace("uniform");
 
     @Override
     public void onInitializeClient() {
@@ -21,64 +27,126 @@ public class PulseWatermarkMod implements ClientModInitializer {
             return;
         }
 
-        String brand = "pulsevisuals.pro";
-        String pingStr = getPing(client) + " ms";
-        String fpsStr = client.getFps() + " FPS";
-        String sep = "  |  ";
+        Style fontStyle = Style.EMPTY.withFont(SMOOTH_FONT);
+        Component brand = Component.literal("pulsevisuals.pro").setStyle(fontStyle);
+        Component pingComp = Component.literal(getPing(client) + " ms").setStyle(fontStyle);
+        Component fpsComp = Component.literal(client.getFps() + " FPS").setStyle(fontStyle);
 
         Font font = client.font;
-        int iconSpace = 14;
-        int contentWidth = iconSpace + font.width(brand + sep + pingStr + sep + fpsStr);
+        float textScale = 0.95f;
 
-        int padX = 10;
-        int padY = 5;
-        int width = contentWidth + padX * 2;
-        int height = font.lineHeight + padY * 2;
+        int iconWidth = 12;
+        int gapAfterIcon = 7;
+        int sepGap = 8; // Отступ вокруг тонкой вертикальной полоски-разделителя
+
+        int brandW = Math.round(font.width(brand) * textScale);
+        int pingW = Math.round(font.width(pingComp) * textScale);
+        int fpsW = Math.round(font.width(fpsComp) * textScale);
+
+        int padX = 12;
+        int height = 22;
+        int width = padX * 2 + iconWidth + gapAfterIcon + brandW + sepGap * 2 + 1 + pingW + sepGap * 2 + 1 + fpsW;
 
         int screenWidth = client.getWindow().getGuiScaledWidth();
         int x = (screenWidth - width) / 2;
-        int y = 6;
-        int radius = height / 2;
+        int y = 7;
 
-        drawPill(graphics, x - 1, y - 1, width + 2, height + 2, radius + 1, 0x35FFFFFF);
-        drawPill(graphics, x, y, width, height, radius, 0xD80D0D12);
+        // 1. Мягкая внешняя тень вокруг капсулы
+        drawSmoothPill(graphics, x - 2, y - 1, width + 4, height + 3, 0x45000000);
 
-        int iconX = x + padX;
-        int iconY = y + height / 2;
+        // 2. Глубокий почти непрозрачный черный фон капсулы, как в оригинале Pulse
+        drawSmoothPill(graphics, x, y, width, height, 0xF208080C);
+
+        // 3. Едва заметная тонкая обводка по краю
+        drawSmoothPillOutline(graphics, x, y, width, height, 0x22FFFFFF);
+
+        // 4. Фирменная иконка пульса (кардиограмма) слева
+        int ix = x + padX;
+        int iy = y + height / 2;
         int pulseColor = 0xFF7B68EE;
-        graphics.fill(iconX, iconY, iconX + 2, iconY + 1, pulseColor);
-        graphics.fill(iconX + 2, iconY - 3, iconX + 3, iconY + 1, pulseColor);
-        graphics.fill(iconX + 3, iconY - 3, iconX + 4, iconY + 4, pulseColor);
-        graphics.fill(iconX + 4, iconY - 1, iconX + 5, iconY + 4, pulseColor);
-        graphics.fill(iconX + 5, iconY - 1, iconX + 7, iconY, pulseColor);
 
-        int curX = iconX + iconSpace;
-        int textY = y + padY + 1;
+        graphics.fill(ix, iy, ix + 2, iy + 1, pulseColor);
+        graphics.fill(ix + 2, iy - 2, ix + 3, iy + 1, pulseColor);
+        graphics.fill(ix + 3, iy - 5, ix + 4, iy - 1, pulseColor);
+        graphics.fill(ix + 4, iy - 2, ix + 5, iy + 5, pulseColor);
+        graphics.fill(ix + 5, iy + 1, ix + 6, iy + 5, pulseColor);
+        graphics.fill(ix + 6, iy - 3, ix + 7, iy + 2, pulseColor);
+        graphics.fill(ix + 7, iy - 1, ix + 8, iy + 1, pulseColor);
+        graphics.fill(ix + 8, iy, ix + 11, iy + 1, pulseColor);
 
-        graphics.drawString(font, brand, curX, textY, 0xFFFFFFFF, false);
-        curX += font.width(brand);
+        // 5. Текст гладким шрифтом и тонкие вертикальные разделители
+        int curX = ix + iconWidth + gapAfterIcon;
+        float textY = y + (height - font.lineHeight * textScale) / 2.0f + 0.5f;
 
-        graphics.drawString(font, sep, curX, textY, 0xFF555560, false);
-        curX += font.width(sep);
+        drawScaledComponent(graphics, font, brand, curX, textY, textScale, 0xFFFFFFFF);
+        curX += brandW + sepGap;
 
-        graphics.drawString(font, pingStr, curX, textY, 0xFFE0E0E5, false);
-        curX += font.width(pingStr);
+        // Тонкий вертикальный разделитель №1
+        graphics.fill(curX, y + 6, curX + 1, y + height - 6, 0xFF32323C);
+        curX += 1 + sepGap;
 
-        graphics.drawString(font, sep, curX, textY, 0xFF555560, false);
-        curX += font.width(sep);
+        drawScaledComponent(graphics, font, pingComp, curX, textY, textScale, 0xFFE6E6EC);
+        curX += pingW + sepGap;
 
-        graphics.drawString(font, fpsStr, curX, textY, 0xFFE0E0E5, false);
+        // Тонкий вертикальный разделитель №2
+        graphics.fill(curX, y + 6, curX + 1, y + height - 6, 0xFF32323C);
+        curX += 1 + sepGap;
+
+        drawScaledComponent(graphics, font, fpsComp, curX, textY, textScale, 0xFFE6E6EC);
     }
 
-    private void drawPill(GuiGraphics graphics, int x, int y, int width, int height, int radius, int color) {
-        radius = Math.min(radius, Math.min(width / 2, height / 2));
-        graphics.fill(x, y + radius, x + width, y + height - radius, color);
-        for (int i = 0; i < radius; i++) {
-            double dy = radius - i - 0.5;
-            int dx = (int) Math.round(radius - Math.sqrt(radius * radius - dy * dy));
-            graphics.fill(x + dx, y + i, x + width - dx, y + i + 1, color);
-            graphics.fill(x + dx, y + height - 1 - i, x + width - dx, y + height - i, color);
+    private void drawScaledComponent(GuiGraphics graphics, Font font, Component text, float x, float y, float scale, int color) {
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(x, y);
+        graphics.pose().scale(scale, scale);
+        graphics.drawString(font, text, 0, 0, color, false);
+        graphics.pose().popMatrix();
+    }
+
+    private void drawSmoothPill(GuiGraphics graphics, int x, int y, int width, int height, int argbColor) {
+        int baseAlpha = (argbColor >>> 24) & 0xFF;
+        int rgb = argbColor & 0x00FFFFFF;
+        float r = height / 2.0f;
+
+        int leftInner = (int) Math.ceil(x + r);
+        int rightInner = (int) Math.floor(x + width - r);
+        if (rightInner > leftInner) {
+            graphics.fill(leftInner, y, rightInner, y + height, argbColor);
         }
+
+        for (int py = 0; py < height; py++) {
+            float dy = (py + 0.5f) - r;
+            float distSq = r * r - dy * dy;
+            if (distSq <= 0) continue;
+
+            float span = (float) Math.sqrt(distSq);
+            float exactLeft = (x + r) - span;
+            float exactRight = (x + width - r) + span;
+
+            int lx = (int) Math.floor(exactLeft);
+            int rx = (int) Math.floor(exactRight);
+
+            float leftCov = 1.0f - (exactLeft - lx);
+            int lAlpha = Math.min(255, Math.max(0, Math.round(baseAlpha * leftCov)));
+            graphics.fill(lx, y + py, lx + 1, y + py + 1, (lAlpha << 24) | rgb);
+
+            float rightCov = exactRight - rx;
+            int rAlpha = Math.min(255, Math.max(0, Math.round(baseAlpha * rightCov)));
+            graphics.fill(rx, y + py, rx + 1, y + py + 1, (rAlpha << 24) | rgb);
+
+            if (leftInner > lx + 1) {
+                graphics.fill(lx + 1, y + py, leftInner, y + py + 1, argbColor);
+            }
+            if (rx > rightInner) {
+                graphics.fill(rightInner, y + py, rx, y + py + 1, argbColor);
+            }
+        }
+    }
+
+    private void drawSmoothPillOutline(GuiGraphics graphics, int x, int y, int width, int height, int color) {
+        int r = height / 2;
+        graphics.fill(x + r, y, x + width - r, y + 1, color);
+        graphics.fill(x + r, y + height - 1, x + width - r, y + height, color);
     }
 
     private int getPing(Minecraft client) {
